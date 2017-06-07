@@ -6,7 +6,6 @@
 #include <stdexcept>
 #include <string>
 #include <sstream>
-#include <istream>
 
 using SMTvaluation = const std::vector<int>&;
 
@@ -23,7 +22,7 @@ struct SmtCnf{
     };
 
     struct Clause{
-        std::vector<Clause> literals;
+        std::vector<Literal> literals;
         bool eval(SMTvaluation val);
         bool operator()(SMTvaluation val){return eval(val);}
     };
@@ -50,10 +49,10 @@ struct SmtCnf{
 
 std::istream& operator>>(std::istream& in, SmtCnf::Literal& lit);
 std::istream& operator>>(std::istream& in, SmtCnf::Clause& cl);
-std::istream& operator>>(std::istream& in, SmtCnf::Clause& SmtCnf);
+std::istream& operator>>(std::istream& in, SmtCnf& SmtCnf);
 std::ostream& operator<<(std::ostream& out, const SmtCnf::Literal& lit);
 std::ostream& operator<<(std::ostream& out, const SmtCnf::Clause& cl);
-std::ostream& operator<<(std::ostream& out, const SmtCnf::Clause& SmtCnf);
+std::ostream& operator<<(std::ostream& out, const SmtCnf& SmtCnf);
 
 
 #endif

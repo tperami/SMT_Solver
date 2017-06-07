@@ -2,6 +2,7 @@
 #include "SmtCnf.h"
 #include <istream>
 #include <limits>
+#include <iostream>
 
 using namespace std;
 
@@ -82,6 +83,7 @@ SmtCnf::SmtCnf(std::istream& in){
     for(size_t i = 0 ; i < size ; ++i){
         Clause cl;
         in >> cl;
+        clauses.push_back(move(cl));
         ++ parserLine;
     }
 }
@@ -135,7 +137,9 @@ std::istream& operator>>(std::istream& in, SmtCnf::Clause& cl){
     if(in.eof()) return in;
     while(in.peek() != '\n'){
         SmtCnf::Literal lit;
+        std::cout << "reading lit" << endl;
         in >> lit;
+        cl.literals.push_back(move(lit));
         if(in.eof()) return in;
         in >> ws;
         if(!in.good()) return in;
@@ -144,7 +148,35 @@ std::istream& operator>>(std::istream& in, SmtCnf::Clause& cl){
     return in;
 }
 
-std::istream& operator>>(std::istream& in, SmtCnf::Clause& SmtCnf);
-std::ostream& operator<<(std::ostream& out, const SmtCnf::Literal& lit);
-std::ostream& operator<<(std::ostream& out, const SmtCnf::Clause& cl);
-std::ostream& operator<<(std::ostream& out, const SmtCnf::Clause& SmtCnf);
+std::istream& operator>>(std::istream& in, SmtCnf& Smtcnf){
+    Smtcnf.~SmtCnf();
+    new(&Smtcnf) SmtCnf(in);
+    return in;
+}
+std::ostream& operator<<(std::ostream& out, const SmtCnf::Literal& lit){
+    out << lit.var1 << " ";
+    switch(lit.type){
+        case SmtCnf::Literal::EQUAL:
+            out << "=";
+            break;
+        case SmtCnf::Literal::NOTEQ:
+            out << "<>";
+            break;
+    }
+    out << " " << lit.var2;
+    return out;
+}
+std::ostream& operator<<(std::ostream& out, const SmtCnf::Clause& cl){
+    for(const auto& lit : cl.literals){
+        out << lit << "  ";
+    }
+    out << endl;
+    return out;
+}
+std::ostream& operator<<(std::ostream& out, const SmtCnf& Smtcnf){
+    out << "cnf " << Smtcnf._numVar << " " << Smtcnf.clauses.size() << endl;
+    for(const auto& cl : Smtcnf.clauses){
+        out << cl;
+    }
+    return out;
+}

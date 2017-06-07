@@ -1,4 +1,4 @@
-#include<iostream>
+#include <iostream>
 #include "SmtCnf.h"
 #include <fstream>
 #include <cerrno>
@@ -19,6 +19,12 @@ int main(int argc, char**argv){
     try{
         in.exceptions(istream::failbit); // immediate launch if file can't be opened
         SmtCnf sc(in);
+        cout << "Solving" << endl;
+        cout << sc;
+
+        //auto v = solve(sc);
+        //if(v.empty()) cout << "UNSAT" << endl;
+        //else cout << v;
     }
     catch(std::exception& e){
         if(!errno) cerr << e.what() << endl;
