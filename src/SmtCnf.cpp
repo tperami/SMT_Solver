@@ -78,6 +78,16 @@ SmtCnf::SmtCnf(std::istream& in){
         throw SmtSyntaxErr(parserLine, "Only cnf format supported");
     }
 
+    try{
+        while(in.peek() != '\n' and in.peek() != EOF){
+            in.ignore();
+        }
+        in.ignore();
+    }
+    catch (istream::failure& e){
+        throw SmtSyntaxErr(parserLine, "p line doesn't end on \\n");
+    }
+
     clauses.reserve(size);
     ++parserLine;
     for(size_t i = 0 ; i < size ; ++i){
@@ -133,15 +143,18 @@ std::istream& operator>>(std::istream& in, SmtCnf::Literal& lit){
 std::istream& operator>>(std::istream& in, SmtCnf::Clause& cl){
     cl = SmtCnf::Clause();
     if(in.eof()) return in;
-    in >> ws;
+    while(in.peek() == ' '){
+        in.ignore();
+    }
     if(in.eof()) return in;
     while(in.peek() != '\n'){
         SmtCnf::Literal lit;
-        std::cout << "reading lit" << endl;
         in >> lit;
         cl.literals.push_back(move(lit));
         if(in.eof()) return in;
-        in >> ws;
+        while(in.peek() == ' '){
+            in.ignore();
+        }
         if(!in.good()) return in;
     }
     in.ignore(1);
