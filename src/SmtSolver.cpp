@@ -50,6 +50,7 @@ std::pair<bool, std::vector<int>> decide(const SmtSatKernel& ker, std::vector<bo
     std::vector<std::vector<int>> graph(vals.size());
     std::vector<std::pair<int, int>> forbidden;
 
+    //On génère le graphe d'égalité et quelles sont les égalités impossibles (forbidden)
     for(size_t i = 0; i < ker.from.size(); ++i) {
         int v1 = ker.from[i].first;
         int v2 = ker.from[i].second;
@@ -61,6 +62,7 @@ std::pair<bool, std::vector<int>> decide(const SmtSatKernel& ker, std::vector<bo
         }
     }
 
+    //Algorithme pour trouver les composantes connexes (linéaire)
     struct CompConn {
         const std::vector<std::vector<int>>& graph;
         std::vector<int> comps;
@@ -89,8 +91,8 @@ std::pair<bool, std::vector<int>> decide(const SmtSatKernel& ker, std::vector<bo
     CompConn cc(graph);
     cc.compute();
 
+    //Calcul des "forbidden" qui crééent des conflits
     std::vector<size_t> badForbidden;
-
     for(size_t i = 0; i < forbidden.size(); ++i) {
         if(cc.comps[forbidden[i].first] == cc.comps[forbidden[i].second]) {
             badForbidden.push_back(i);
@@ -101,6 +103,7 @@ std::pair<bool, std::vector<int>> decide(const SmtSatKernel& ker, std::vector<bo
         return std::make_pair(true, cc.comps);
     }
 
+    //BFS pour calculer le plus court chemin d'un point à tous les autres
     struct ShortestPath {
         const std::vector<std::vector<int>>& graph;
         const SmtSatKernel& ker;
@@ -127,6 +130,7 @@ std::pair<bool, std::vector<int>> decide(const SmtSatKernel& ker, std::vector<bo
             }
         }
 
+        //Donne la "preuve" de l'égalité entre startNode et to
         std::vector<int> recoverCounterExample(int to) {
             std::vector<int> res;
             int cur = to;
@@ -144,8 +148,11 @@ std::pair<bool, std::vector<int>> decide(const SmtSatKernel& ker, std::vector<bo
         }
     };
 
-#define LINEAR
-#ifdef LINEAR
+#if 0
+    //Algorithme linéaire mais ne fournit pas le contre-exemple minimal
+    //On prends un "forbidden" qui créé conflit, et on trouve le contre-exemple
+    //minimal pour celui-ci
+
     auto pair = forbidden[badForbidden.front()];
     int v1 = pair.first;
     int v2 = pair.second;
@@ -154,11 +161,18 @@ std::pair<bool, std::vector<int>> decide(const SmtSatKernel& ker, std::vector<bo
     sp.compute(v1);
     return std::make_pair(false, sp.recoverCounterExample(v2));
 #else
+    //Algorithme quadratique mais fournit le contre-exemple minimal
+    //À chaque tour de boucle, on prends le sommet qui créé le plus de conflits-non-traités, on calcule
+    //les distances à partir de lui et ainsi on prends le "chemin minimal" entre tous
+    //les conflits, qui est le contre-exemple minimal
+
     ShortestPath sp(graph, ker);
     int bestDist = 1<<30;
     std::vector<int> bestCounterExample;
 
+    //nombre de foit qu'une variable apparait dans un conflit
     std::vector<int> nbForb(vals.size(), 0);
+    //liste d'adjacence pour les conflits
     std::vector<std::vector<int>> graphForb(vals.size(), std::vector<int>());
     for(const auto& pair : forbidden) {
         int v1 = pair.first;
@@ -170,6 +184,7 @@ std::pair<bool, std::vector<int>> decide(const SmtSatKernel& ker, std::vector<bo
     }
 
     while(true) {
+        //indice de la variable qui créé le plus de conflits
         size_t maxForb = 0;
         for(size_t i = 1; i < nbForb.size(); ++i) {
             if(nbForb[i] > nbForb[maxForb]) {
@@ -217,7 +232,13 @@ std::vector<int> solve(const SmtCnf& sc, bool smtVerbose, bool satVerbose) {
             return pair.second;
         }
         SatCnf::Clause newClause;
+//Cette condition préprocesseur est là pour tester la performance sans l'algorithme
+//qui trouve un contre-exemple petit
+#if 1
         for(int i : pair.second) {
+#else
+        for(int i = 0; i < vals.size(); ++i) {
+#endif
             newClause.literals.push_back(SatCnf::Literal{vals[i], i});
         }
         if(smtVerbose) {

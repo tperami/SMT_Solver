@@ -12,13 +12,20 @@
 using namespace std;
 
 int main(int argc, char**argv){
-    bool verbose = false;
+    bool satverbose = false;
+    bool smtverbose = false;
     try{
         for(int cur  = 1 ; cur < argc ; ++cur){
             string s = argv[cur];
             if(s == "-v"){
-                verbose = true;
+                smtverbose = true;
                 cout << "Verbose mode activated" << endl;
+                continue;
+            }
+            else if(s == "-vv"){
+                satverbose = true;
+                smtverbose = true;
+                cout << "VeryVerbose mode activated" << endl;
                 continue;
             }
             else if(s == "-sat"){
@@ -35,7 +42,7 @@ int main(int argc, char**argv){
                 SatCnf sc(in);
                 cout << "Solving :" << endl;
                 cout << sc << endl;
-                SatSolver sats(sc._numVar,verbose);
+                SatSolver sats(sc._numVar,satverbose);
                 sats.import(sc);
                 auto sol = sats.solve();
                 cout << "Solution : " << sol << endl;
@@ -59,7 +66,7 @@ int main(int argc, char**argv){
                 SmtCnf sc(in);
                 cout << "Solving" << endl;
                 cout << sc;
-                auto sol = solve(sc);
+                auto sol = solve(sc, smtverbose, satverbose);
                 cout << "Solution : " << sol << endl;
                 if(!sol.empty()) {
                     cout << sc.eval(sol) << endl;
