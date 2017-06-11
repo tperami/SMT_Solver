@@ -4,6 +4,7 @@ using namespace std;
 
 void SatSolver::checkInvariant(){
 #ifndef NDEBUG
+    cout << "check";
     // sizes
     if(_model.size() > _numVar){
         cout << "model too big :" << _model.size() << " " <<  _numVar <<  endl;
@@ -18,12 +19,17 @@ void SatSolver::checkInvariant(){
     // model used & value self coherence
     Bitset used(_numVar);
     Bitset value(_numVar);
+    Bitset unicity(_numVar);
     used.clear();
     value.clear();
     for(auto& mlit : _model){
+        unicity.clear();
         used[mlit.var.i] = true;
         value[mlit.var.i] = ! mlit.var.b;
+        assert(isSorted(mlit.decidingCl));
         for(DInt di : mlit.decidingCl){
+            assert(!unicity[di.i]);
+            unicity[di.i] = true;
             if(di.i == mlit.var.i){
                 assert(di.b == mlit.var.b);
             }
@@ -82,15 +88,16 @@ bool SatSolver::decide(){
     return false;
 }
 
-void SatSolver::unit(DInt var, std::set<DInt> decCl){
+void SatSolver::unit(DInt var, std::vector<DInt> decCl){
     assert(!_used[var.i]);
+    assert(isSorted(decCl));
     setVar(var);
     _model.push_back(MLit{var,move(decCl)});
 }
 
 void SatSolver::unit(DInt var, int clause){
-    auto& cl = _clauses.at(clause).clause;
-    unit(var,std::set<DInt>(cl.begin(),cl.end()));
+    //auto& cl = _clauses.at(clause).clause;
+    unit(var,_clauses[clause].clause);
 }
 
 SatSolver::SatSolver(int numVar, bool verbose)
@@ -104,23 +111,12 @@ void SatSolver::conflict(int clause){ // conflict by resolution then backjump
     assert((size_t)clause < _clauses.size());
     checkInvariant();
     _toUpdate.clear();
-    auto& cl = _clauses[clause].clause;
-    set<DInt> R(cl.begin(), cl.end());
+    vector<DInt> R = _clauses[clause].clause;
     if(_verbose ) cout << "starting resolution with : " << R << endl;
-#ifndef NDEBUG
-    auto test = R;
-    for(auto& c : _model){
-        test.erase(!c.var);
-    }
-    if(!test.empty()){
-        cout << "FAIL : " << test << endl;
-        assert(false);
-    }
-#endif
     while(!_model.empty() and !R.empty()){
         MLit& cur = _model.back();
-        assert(R.count(cur.var) == 0); // the variable is not in R.
-        if(R.count(!cur.var)){
+        assert(!in(cur.var,R)); // the variable is not in R.
+        if(in(!cur.var,R)){
             if(cur.decidingCl.empty()){ // start backjump
                 if(_verbose){
                     cout << "conflict end on var : " << cur.var << " with : " << R << endl;
@@ -131,7 +127,7 @@ void SatSolver::conflict(int clause){ // conflict by resolution then backjump
                 int i;
                 int lastDeciLit = _model.size() -1;
                 for(i = _model.size() -2 ; i >= 0 ; --i){
-                    if(R.count(!_model[i].var)) {
+                    if(in(!_model[i].var,R)) {
                         if(_verbose) cout << "backjump breaked at : " << i
                                           << " cutting at : " << lastDeciLit << endl;
                         break;
@@ -149,12 +145,6 @@ void SatSolver::conflict(int clause){ // conflict by resolution then backjump
                     _used[_model[i].var.i] = false;
                 }
                 _model.resize(lastDeciLit);
-                if(_verbose) {
-                    cout << "after backjump model :" << endl;
-                    printModel();
-                    cout << endl <<  "and used :" << _used << endl;
-                }
-                //_model.pop_back();
                 unit(v,R);
                 checkInvariant();
                 return;
@@ -172,30 +162,9 @@ void SatSolver::conflict(int clause){ // conflict by resolution then backjump
             }
         }
         else {
-            if(_verbose) {
-                cout << "unsetting " << _model.size() << endl;
-                cout << "old model :" << endl;
-                printModel();
-                cout << endl <<  "and used :" << _used << endl;
-            }
             _used[_model.back().var.i] = false;
             _model.pop_back();
-            if(_verbose) {
-                cout << "new model :" << endl;
-                printModel();
-                cout << endl <<  "and used :" << _used << endl;
-            }
         }
-        /*if(_model.back().decidingCl.empty()){ // decision literal.
-            DInt v = _model.back().var;
-            v = !v;
-            _model.pop_back();
-            unit(v,clause);
-            return;
-        }
-        else{
-            _model.pop_back();
-            }*/
     }
     cout << "-------------------UNSAT----------------------" << endl;
     throw 0; // NOOOOOOOOOO : UNSAT
@@ -278,31 +247,54 @@ void SatSolver::handle(){
     }
 }
 
-std::vector<bool> SatSolver::solve(const SatCnf& sc){
+void SatSolver::import(const SatCnf& sc){
     assert(sc._numVar == _numVar);
-    auto toDInt = [](SatCnf::Literal lit){ return DInt{lit.neg,lit.var};};
-    size_t clNum = 0;
     for(auto cl : sc.clauses){
-        if(cl.literals.size() == 0) continue; // this clause is satisfiable
-        else{
-            Clause cl2;
-            for(auto lit : cl.literals){
-                cl2.clause.push_back(toDInt(lit));
-            }
-            cl2.wl1 = 0;
-            _watched[cl2.clause[cl2.wl1]].insert(DInt(false,clNum));
-            cl2.wl2 = cl.literals.size() -1;
-            _watched[cl2.clause[cl2.wl2]].insert(DInt(true,clNum));
-            if(_verbose){
-                cout << "Creating clause " << clNum << " : " << cl2 << endl;
-                //printWatched();
-            }
-            ++ clNum;
-            _clauses.push_back(cl2);
-        }
+        addSMTConflict(cl);
     }
+}
 
-    // finished loading, run solver !
+void SatSolver::addSMTConflict(SatCnf::Clause& cl){
+    auto toDInt = [](SatCnf::Literal lit){ return DInt{lit.neg,lit.var};};
+    bool begin = _model.empty();
+    if(cl.literals.size() == 0) return; // this clause is satisfiable
+    else{
+        Clause cl2;
+        for(auto lit : cl.literals){
+            cl2.clause.push_back(toDInt(lit));
+        }
+        sort(cl2.clause.begin(), cl2.clause.end());
+        if(begin){
+            cl2.wl1 = 0;
+            cl2.wl2 = cl.literals.size() -1;
+        }
+        else{
+            bool second = false;
+            for(int i = _model.size() -1 ; i >= 0 ; -- i){
+                if(in(!_model[i].var,cl2.clause)){
+                    if(!second){
+                        cl2.wl1 = index(!_model[i].var,cl2.clause);
+                        second = true;
+                    }
+                    else{
+                        cl2.wl2 = index(!_model[i].var,cl2.clause);
+                        break;
+                    }
+
+                }
+            }
+        }
+        _watched[cl2.clause[cl2.wl1]].insert(DInt(false,_clauses.size()));
+        _watched[cl2.clause[cl2.wl2]].insert(DInt(true,_clauses.size()));
+        if(_verbose){
+            cout << "Creating clause " << _clauses.size() << " : " << cl2 << endl;
+            //printWatched();
+        }
+        _clauses.push_back(cl2);
+    }
+}
+std::vector<bool> SatSolver::solve(){
+    
     try{
         while(!decide()){
             while(!_toUpdate.empty()){

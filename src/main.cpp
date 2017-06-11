@@ -35,7 +35,8 @@ int main(int argc, char**argv){
                 cout << "Solving :" << endl;
                 cout << sc << endl;
                 SatSolver sats(sc._numVar,verbose);
-                auto sol = sats.solve(sc);
+                sats.import(sc);
+                auto sol = sats.solve();
                 cout << "Solution : " << sol << endl;
 
                 if(!sol.empty()){

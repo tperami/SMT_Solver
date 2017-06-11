@@ -5,7 +5,7 @@ OUTDIR=out
 DEPDIR=dep
 
 CXX=g++
-CXXFLAGS= -O3 -DNDEBUG -I $(SRCDIR) -I $(OUTDIR) --std=c++14
+CXXFLAGS= -O2 -DNDEBUG -I $(SRCDIR) -I $(OUTDIR) --std=c++14
 CXXWFLAGS= -Wall -Wextra $(CXXFLAGS)
 SRC=$(wildcard $(SRCDIR)/*.cpp)
 OBJ=$(patsubst $(SRCDIR)/%.cpp,$(OUTDIR)/%.o,$(SRC))
