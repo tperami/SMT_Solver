@@ -2,6 +2,7 @@
 #include "SmtCnf.h"
 #include "SatCnf.h"
 #include "SatSolver.h"
+#include "SmtSolver.h"
 #include <fstream>
 #include <cerrno>
 #include <cstring>
@@ -58,6 +59,12 @@ int main(int argc, char**argv){
                 SmtCnf sc(in);
                 cout << "Solving" << endl;
                 cout << sc;
+                auto sol = solve(sc);
+                cout << "Solution : " << sol << endl;
+                if(!sol.empty()) {
+                    cout << sc.eval(sol) << endl;
+                }
+
                 exit(0);
             }
             /*else if(s == "-gsat"){

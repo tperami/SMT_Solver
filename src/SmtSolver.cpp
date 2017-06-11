@@ -1,6 +1,8 @@
 #include "SmtSolver.h"
 #include <queue>
 #include <cassert>
+#include <iostream>
+#include "SatSolver.h"
 
 std::pair<int, int> mkOrderedPair(int a, int b) {
     if(a <= b) {
@@ -199,6 +201,31 @@ std::pair<bool, std::vector<int>> decide(const SmtSatKernel& ker, std::vector<bo
 #endif
 }
 
-std::vector<int> solve(const SmtCnf& sc) {
+std::vector<int> solve(const SmtCnf& sc, bool smtVerbose, bool satVerbose) {
+    auto pair_ = gene(sc);
+    SmtSatKernel ker = pair_.first;
+    SatCnf satc = pair_.second;
+    SatSolver ss(satc._numVar, satVerbose);
+    ss.import(satc);
+    while(true) {
+        std::vector<bool> vals = ss.solve();
+        if(vals.empty()) {
+            return std::vector<int>();
+        }
+        auto pair = decide(ker, vals);
+        if(pair.first) {
+            return pair.second;
+        }
+        SatCnf::Clause newClause;
+        for(int i : pair.second) {
+            newClause.literals.push_back(SatCnf::Literal{vals[i], i});
+        }
+        if(smtVerbose) {
+            std::cout << "Valuation: " << vals << std::endl;
+            std::cout << "Counter example: " << pair.second << std::endl;
+            std::cout << "Adding clause " << newClause << std::endl;
+        }
+        ss.addSMTConflict(newClause);
+    }
 }
 

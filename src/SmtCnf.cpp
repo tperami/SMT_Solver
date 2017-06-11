@@ -103,6 +103,7 @@ SmtCnf::SmtCnf(std::istream& in){
 std::istream& operator>>(std::istream& in, SmtCnf::Literal& lit){
     try{
         in >> lit.var1;
+        lit.var1 -= 1;
     }
     catch (istream::failure& e){
         throw SmtCnf::SmtSyntaxErr(SmtCnf::parserLine,
@@ -131,6 +132,7 @@ std::istream& operator>>(std::istream& in, SmtCnf::Literal& lit){
 
     try{
         in >> lit.var2;
+        lit.var2 -= 1;
     }
     catch (istream::failure& e){
         throw SmtCnf::SmtSyntaxErr(SmtCnf::parserLine,
@@ -167,7 +169,7 @@ std::istream& operator>>(std::istream& in, SmtCnf& Smtcnf){
     return in;
 }
 std::ostream& operator<<(std::ostream& out, const SmtCnf::Literal& lit){
-    out << lit.var1 << " ";
+    out << lit.var1+1 << " ";
     switch(lit.type){
         case SmtCnf::Literal::EQUAL:
             out << "=";
@@ -176,7 +178,7 @@ std::ostream& operator<<(std::ostream& out, const SmtCnf::Literal& lit){
             out << "<>";
             break;
     }
-    out << " " << lit.var2;
+    out << " " << lit.var2+1;
     return out;
 }
 std::ostream& operator<<(std::ostream& out, const SmtCnf::Clause& cl){

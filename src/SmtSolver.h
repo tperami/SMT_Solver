@@ -21,7 +21,7 @@ std::pair<bool, std::vector<int>> decide(const SmtSatKernel& ker, std::vector<bo
 
 // solve a SMT CNF
 // empty vector if not satisfiable
-std::vector<int> solve(const SmtCnf& sc);
+std::vector<int> solve(const SmtCnf& sc, bool smtVerbose=false, bool satVerbose=false);
 
 
 #endif
