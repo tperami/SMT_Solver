@@ -3,35 +3,57 @@
 
 #include <utility>
 #include <vector>
-//#include <set>
+#include <set>
 #include <deque>
 #include <iostream>
 #include "SatCnf.h"
 #include "Bitset.h"
 #include "prettyprint.hpp"
 
-// this class hold the sat solver state
-// the class invariant is programmatically stated in checkInvariant();
+// This class hold the sat solver state
+// The class invariants are programmatically stated in checkInvariant();
 class SatSolver{
 
+    /**
+      This struct is the fusion of an integer and a boolean
+
+      There are 2 uses :
+          - variable : then the boolean means the negation of the variable
+          - clause watch point : then the boolean design the watch point
+            false for 1 and true for 2.
+     */
     struct DInt{
         bool b :1;
         int i :31;
         operator int() const {
             return *((int*)this);
         }
+        // Warning : some pieces of code use the fact that the integer is compared
+        // before the boolean
         bool operator <(DInt other) const {
             return int(*this) < int(other);
         }
         DInt operator !(){
-            return DInt{!b,i};
+            return DInt(!b,i);
         }
         explicit DInt (int i){
             *(int*)this = i;
         }
         DInt(bool nb, int ni) : b(nb), i(ni){}
         DInt(){assert(false);}
-    }; // 2n : var n, 2n+1 neg var n.
+    };
+
+    /*
+      This struct represent a literal in the model.
+
+      The variable is var (it can be negated).
+      if this is a decision literal then &decidingCl == nullptr;
+      else decidingCl is the clause that lead to this decision.
+      toDelete is designating if the clause must be deleted on literal destruction.
+
+      Warning : constructor overloading is strange : if a pointer is given it will destroy it
+      but it will not if it's a reference.
+     */
     struct MLit{
         DInt var;
         // if decision == {} : the var has been decided else this is the deciding clause.
@@ -43,54 +65,62 @@ class SatSolver{
             oth.toDelete = false;
         }
         ~MLit(){
-            //std::cout << "deleting : " << *this << std::endl;
-            if(toDelete){
-                delete &decidingCl;
-                //std::cout << "delete " << &decidingCl << std::endl;
-            }
+            if(toDelete) delete &decidingCl;
         }
-        MLit() : decidingCl(*(std::vector<DInt>*)nullptr){assert(false);} // HACK
+        // HACK (this function is never used)
+        MLit() : decidingCl(*(std::vector<DInt>*)nullptr){assert(false);}
     };
+    // The number of variable
     size_t _numVar;
+    // Enable verbose mode
     bool _verbose;
-    bool firstTime;
+    // Current model M
     std::vector<MLit> _model;
-    Bitset _used;
-    Bitset _value;
+    Bitset _used; // set of variable in the model;
+    Bitset _value; // value of variable in the model, the value is undefined if not in the model.
+
+    // This is a solver clause with its 2 watching value.
     struct Clause{
         std::vector<DInt> clause;
         size_t wl1;
         size_t wl2;
     };
+
+    // This is the list of clauses.
     std::vector<Clause> _clauses;
-    // if b is false, then it is corresponding to wl1 else to wl2.
-    std::vector<std::set<DInt>> _watched;
-    std::deque<DInt> _toUpdate; // list of clauses to be updated.
+
+    // list of clause to be rechecked on setting a variable to false.
+    // has size 2*_numVar and is indexed by the conversion to int of the literal DInt.
+    std::vector<std::set<DInt> > _watched;
+    // list of clauses to be updated.
+    std::deque<DInt> _toUpdate;
 
 
+    // Check if a var is true in the current model.
     bool isTrue(DInt var) const {
         return _used[var.i] and (var.b ^ _value[var.i]);
     }
+    // Check if a var is false in the current model.
     bool isFalse(DInt var) const {
         return _used[var.i] and !(var.b ^ _value[var.i]);
     }
 
+    // print the current model.
     void printModel() const {
         for (auto& mlit : _model){
             std::cout << mlit << " ";
         }
-        //std::cout << " and " << _value;
-        //std::cout << std::endl;
     }
 
+    // print the state of _watched.
     void printWatched() const {
         for(size_t i = 0 ; i < 2*_numVar ; ++ i){
             std::cout << DInt(i) << " : " << _watched[i] << std::endl;
         }
     }
 
+    // merge two clauses (during resolution phase).
     static void fusion (std::vector<DInt>& target, const std::vector<DInt>& other){
-        //std::cout << "before fusion : " << target << " " << other << std::endl;
         const std::vector<DInt> ori = std::move(target);
         target.clear();
         target.reserve(ori.size() + other.size());
@@ -122,34 +152,37 @@ class SatSolver{
                 }
 
             }
-            //std::cout << "one turn : " << target;
         }
-        //std::cout << "after fusion : " << target << " " << other << std::endl;
     }
 
     // rules
     void setVar(DInt var); // update all clauses with a var and _used and _value.
     bool decide(); // decide a unaffected var : return false on decision, true if finished (SAT).
-    void unit(DInt var, std::vector<DInt>& decCl); // fix this var as non-decided and give the reason.
-    void unit(DInt var, int clause); // fix this var as non-decided and give the reason.
-    void conflict(int clause); // resolve conflict on clause, for now only backtrack. TODO resolve
-    void handle(); // take care of the next element in _toUpdate, fail badly if to update is empty.
+    // fix the value this var as non-decided and give an deletable reason.
+    void unit(DInt var, std::vector<DInt>& decCl);
+    // fix the value this var as non-decided and give an non-deletable reason.
+    void unit(DInt var, int clause);
+    void conflict(int clause); // resolve conflict on clause, do all resolution steps.
+    void handle(); // take care of the next element in _toUpdate, fail badly if _toUpdate is empty.
 
-    // check class invariant
+    // Check class invariant
     void checkInvariant();
-    static bool isSorted(const std::vector<DInt>& v){
+
+    // Check if a vector of literals (a clause) is indeed a set (unicity + sorted).
+    static bool isSet(const std::vector<DInt>& v){
         std::set<DInt> v2(v.begin(), v.end());
         std::vector<DInt> res(v2.begin(),v2.end());
         return v == res;
     }
 
+    // Check if a value is indeed in the set.
     static bool in(DInt di, const std::vector<DInt>& v){
         auto it = std::lower_bound(v.begin(),v.end(),di);
         if(it == v.end()) return false;
         return di == *it;
     }
 
-    // if di in v return its index else return UB.
+    // If di is in v then it returns its index else it return UB.
     static int index(DInt di, const std::vector<DInt>& v){
         auto it = std::lower_bound(v.begin(),v.end(),di);
         if(it == v.end()) return -1;
@@ -163,13 +196,13 @@ class SatSolver{
 public :
     SatSolver(int numVar, bool verbose);
 
-    // import SatCnf into the solver.
+    // Import SatCnf into the solver.
     void import(const SatCnf& sc);
 
-    //solve a sat Cnf, returns empty vector if UNSAT.
+    //Solve a sat Cnf, returns empty vector if UNSAT.
     std::vector<bool> solve();
 
-    // add a SMT Conflict clause.
+    // Add a SMT Conflict clause.
     void addSMTConflict(SatCnf::Clause& cl);
 };
 

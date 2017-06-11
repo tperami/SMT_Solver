@@ -4,7 +4,7 @@ using namespace std;
 
 void SatSolver::checkInvariant(){
 #ifndef NDEBUG
-    // sizes
+    // check sizes.
     if(_model.size() > _numVar){
         cout << "model too big :" << _model.size() << " " <<  _numVar <<  endl;
         printModel();
@@ -15,22 +15,24 @@ void SatSolver::checkInvariant(){
     assert(_value.size() == _numVar);
     assert(_watched.size() == 2 * _numVar);
 
-    // model used & value self coherence
+    // model & used & value self coherence
+    // I'll set used and value to their correct values and then compare them.
     Bitset used(_numVar);
     Bitset value(_numVar);
-    Bitset unicity(_numVar);
     used.clear();
     value.clear();
     for(auto& mlit : _model){
-        unicity.clear();
+        // set used and value
         used[mlit.var.i] = true;
         value[mlit.var.i] = ! mlit.var.b;
+        // If decision literal stop here
         if(&mlit.decidingCl == nullptr) continue;
-        //cout << &mlit.decidingCl << endl;
-        assert(isSorted(mlit.decidingCl));
+        // The deciding clause must be a set
+        assert(isSet(mlit.decidingCl));
+
         for(DInt di : mlit.decidingCl){
-            assert(!unicity[di.i]);
-            unicity[di.i] = true;
+            // The deciding clause must contained either the current literal
+            // or the negation of preceding literal in the model.
             if(di.i == mlit.var.i){
                 assert(di.b == mlit.var.b);
             }
@@ -43,29 +45,19 @@ void SatSolver::checkInvariant(){
             }
         }
     }
-    if(_used != used){
-        cout << "new " << used << endl;
-        cout << "old " << _used << endl;
-        assert(false);
-    }
+    assert(_used == used);
     for(size_t i= 0 ; i < _numVar ; ++i){
         if(used[i]){
-            _value[i] = value[i];
+            assert(_value[i] == value[i]);
         }
     }
 
-    // TODO _clauses wl check.
-    // TODO _watched to wl check.
 #endif
 }
 void SatSolver::setVar(DInt var){
-    //cout << "setting : " << var << endl;
-    if(_used[var.i]){
-        cerr << "var " << var.i+1 << " is already unordered_set" << endl;
-        exit(1);
-    }
-    for(auto cl : _watched[!var]){
-        //cout << "to Update : " << cl;
+    // update used and value and add affected clauses to _toUpdate.
+    assert(!_used[var.i]);
+    for(DInt cl : _watched[!var]){
         _toUpdate.push_back(cl);
     }
     _used[var.i] = true;
@@ -74,15 +66,20 @@ void SatSolver::setVar(DInt var){
 
 bool SatSolver::decide(){
     checkInvariant();
+    // we can't decide if their is still clauses to be updated.
     assert(_toUpdate.empty());
+
+    // first unaffected var.
     int var = _used.usf();
-    //cout << "used : " << _used << "usf" << var << endl;
+
+    // their is no unaffected vars :
     if(var == -1) return true; // YEAH : SAT
+
     assert(!_used[var]);
     setVar(DInt(false,var));
     _model.push_back(MLit(DInt(false,var),nullptr));
     if(_verbose) {
-        cout << endl << "Deciding var " << var+1 << endl << "Model : ";
+        cout << endl << "Deciding var " << var+1 << endl << "New model : ";
         printModel();
         cout << endl;
     }
@@ -91,7 +88,7 @@ bool SatSolver::decide(){
 
 void SatSolver::unit(DInt var, std::vector<DInt>& decCl){
     assert(!_used[var.i]);
-    assert(isSorted(decCl));
+    assert(isSet(decCl));
     setVar(var);
     _model.push_back(MLit(var,&decCl));
 }
@@ -109,67 +106,77 @@ SatSolver::SatSolver(int numVar, bool verbose)
     _watched.resize(2*numVar);
 }
 
-void SatSolver::conflict(int clause){ // conflict by resolution then backjump
+void SatSolver::conflict(int clause){ // Conflict by resolution then backjump
     assert((size_t)clause < _clauses.size());
     checkInvariant();
+
+    // other clauses to be updated are useless when there is a conflict.
     _toUpdate.clear();
+    // new dynamic clauses on heap.
     vector<DInt>& R = *new std::vector<DInt>(_clauses[clause].clause);
-    if(_verbose ) cout << "starting resolution with : " << R << endl;
+    if(_verbose ) cout << endl <<endl << "Conflict on clause : " << R
+                       << ". Starting resolution !" << endl;
+
+    // We are going through the model backward until a decision variable in R is met.
+    // Then we backjump as far a possible and we add the variable with the clause R.
     while(!_model.empty() and !R.empty()){
         MLit& cur = _model.back();
-        assert(!in(cur.var,R)); // the variable is not in R.
-        if(in(!cur.var,R)){
+        assert(!in(cur.var,R)); // the variable is not in R (R should always be a conflict).
+        if(in(!cur.var,R)){ // If we are concerned by R.
             if(&cur.decidingCl == nullptr){ // start backjump
                 if(_verbose){
-                    cout << "conflict end on var : " << cur.var << " with : " << R << endl;
-                    cout << "old model :";
-                    printModel();
-                    cout << endl;
+                    cout << endl << "Conflict end on decision literal : " << cur.var
+                         << " with clause : " << R << endl;
                 }
                 int i;
                 int lastDeciLit = _model.size() -1;
                 for(i = _model.size() -2 ; i >= 0 ; --i){
                     if(in(!_model[i].var,R)) {
-                        if(_verbose) cout << "backjump breaked at : " << i
-                                          << " cutting at : " << lastDeciLit << endl;
+                        // If we found another variable in the model, we can't backjump past it.
                         break;
                     }
                     if(&_model[i].decidingCl == nullptr) lastDeciLit = i;
                 }
                 DInt v = cur.var;
                 v = !v;
-                if(_verbose) {
-                    cout << "before backjump model :" << endl;
-                    printModel();
-                    cout << endl <<  "and used :" << _used << endl;
-                }
                 for(size_t i = lastDeciLit ; i < _model.size() ; ++i){
                     _used[_model[i].var.i] = false;
                 }
                 _model.resize(lastDeciLit);
                 unit(v,R);
+
+                if (_verbose){
+                    cout << "New model : ";
+                    printModel();
+                    cout << endl << "End of Conflict : Return to exploration !" << endl << endl;
+                }
+
                 checkInvariant();
                 return;
             }
             else{
                 fusion(R,cur.decidingCl);
-                if(_verbose) cout << "updating R on : " << cur.var << " with : " << R << endl;
+
+                if(_verbose) cout << endl << "Resolve on var : " << cur.var
+                                  << " with new R : " << R << endl;
+
                 _used[_model.back().var.i] = false;
                 _model.pop_back();
+
                 if(_verbose) {
-                    cout << "new model :" << endl;
+                    cout << "New model : ";
                     printModel();
-                    cout << endl <<  "and used :" << _used << endl;
+                    cout << endl;
                 }
             }
         }
-        else {
+        else {// If we are not concerned by R, just pop back the model.
             _used[_model.back().var.i] = false;
             _model.pop_back();
         }
     }
     cout << "-------------------UNSAT----------------------" << endl;
-    throw 0; // NOOOOOOOOOO : UNSAT
+    throw 0;
 }
 
 void SatSolver::handle(){
@@ -179,43 +186,53 @@ void SatSolver::handle(){
     Clause& cl = _clauses.at(clNum.i);
     if(clNum.b){ // mutating wl2
         if(_verbose){
-            cout << endl << "Updating wl2 in " << clNum.i << " : " << cl << endl;
-            cout << "in model : ";
+            cout << endl << "Updating second watched literal because of "
+                 << !cl.clause[cl.wl1] << " in clause "
+                 << clNum.i << " : " << cl << endl;
+            cout << "in the model : ";
             printModel();
             cout << endl;
         }
+
         assert(isFalse(cl.clause[cl.wl2]));
+
+        // First case : the other watched literal is true.
         if(isTrue(cl.clause[cl.wl1])) return;
+
         for(size_t i = 0 ; i < cl.clause.size() ; ++ i){
             if (i == cl.wl1 or i == cl.wl2) continue;
             if(!isFalse(cl.clause[i])){
-                if(_verbose) cout << "new wl found " << i << endl;
+                // Second case, we can still watch another literal
+                if(_verbose) cout << "new watched literal found " << cl.clause[i]
+                                  << " at : " << i << endl;
+
                 _watched[cl.clause[cl.wl2]].erase(clNum);
                 cl.wl2 = i;
                 _watched[cl.clause[cl.wl2]].insert(clNum);
                 return;
             }
         }
+
+        // third case we can't find other places and the other WL is false : conflict.
         if(isFalse(cl.clause[cl.wl1])){
             conflict(clNum.i);
-            if(_verbose){
-                cout << "conflict : ";
-                printModel();
-                cout << endl;
-            }
             return;
         }
+        // last case, the only not false literal is the other one.
         unit(cl.clause[cl.wl1],clNum.i);
         if(_verbose){
-            cout << "unit  on : " << cl.clause[cl.wl1] << " : ";
+            cout << "Applied unit on var : " << cl.clause[cl.wl1] << endl;
+            cout << "New model : ";
             printModel();
             cout << endl;
         }
     }
     else{ // mutating wl1
         if(_verbose){
-            cout << endl << "Updating wl1 in " << clNum.i << " : " << cl << endl;
-            cout << "in model : ";
+            cout << endl << "Updating first watched literal because of "
+                 << !cl.clause[cl.wl1] << " in clause "
+                 << clNum.i << " : " << cl << endl;
+            cout << "in the model : ";
             printModel();
             cout << endl;
         }
@@ -224,7 +241,8 @@ void SatSolver::handle(){
         for(size_t i = 0 ; i < cl.clause.size() ; ++ i){
             if (i == cl.wl1 or i == cl.wl2) continue;
             if(!isFalse(cl.clause[i])){
-                if(_verbose) cout << "new wl found " << i << endl;
+                if(_verbose) cout << "New watched literal found " << cl.clause[i]
+                                  << " at : " << i << endl;
                 _watched[cl.clause[cl.wl1]].erase(clNum);
                 cl.wl1 = i;
                 _watched[cl.clause[cl.wl1]].insert(clNum);
@@ -233,16 +251,12 @@ void SatSolver::handle(){
         }
         if(isFalse(cl.clause[cl.wl2])){
             conflict(clNum.i);
-            if(_verbose){
-                cout << "conflict : ";
-                printModel();
-                cout << endl;
-            }
             return;
         }
         unit(cl.clause[cl.wl2],clNum.i);
         if(_verbose){
-            cout << "unit  on : " << cl.clause[cl.wl2] << " : ";
+            cout << "Applied unit on var : " << cl.clause[cl.wl2] << endl;
+            cout << "New model : ";
             printModel();
             cout << endl;
         }
