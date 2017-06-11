@@ -39,8 +39,15 @@ class SatSolver{
         bool toDelete = false;
         MLit(DInt v, std::vector<DInt>* dCl) : var(v), decidingCl(*dCl), toDelete(true){}
         MLit(DInt v, std::vector<DInt>& dCl) : var(v), decidingCl(dCl), toDelete(false){}
+        MLit(MLit&& oth) : var(oth.var), decidingCl(oth.decidingCl), toDelete(oth.toDelete){
+            oth.toDelete = false;
+        }
         ~MLit(){
-            if(toDelete) delete &decidingCl;
+            //std::cout << "deleting : " << *this << std::endl;
+            if(toDelete){
+                delete &decidingCl;
+                //std::cout << "delete " << &decidingCl << std::endl;
+            }
         }
         MLit() : decidingCl(*(std::vector<DInt>*)nullptr){assert(false);} // HACK
     };
@@ -69,7 +76,7 @@ class SatSolver{
     }
 
     void printModel() const {
-        for (auto mlit : _model){
+        for (auto& mlit : _model){
             std::cout << mlit << " ";
         }
         //std::cout << " and " << _value;
@@ -150,9 +157,9 @@ class SatSolver{
     }
 
     // pretty-printing
-    friend std::ostream& operator<<(std::ostream& out, SatSolver::DInt var);
-    friend std::ostream& operator<<(std::ostream& out, SatSolver::MLit var);
-    friend std::ostream& operator<<(std::ostream& out, SatSolver::Clause cl);
+    friend std::ostream& operator<<(std::ostream& out, const SatSolver::DInt& var);
+    friend std::ostream& operator<<(std::ostream& out, const SatSolver::MLit& var);
+    friend std::ostream& operator<<(std::ostream& out, const SatSolver::Clause& cl);
 public :
     SatSolver(int numVar, bool verbose);
 
@@ -166,18 +173,18 @@ public :
     void addSMTConflict(SatCnf::Clause& cl);
 };
 
-inline std::ostream& operator<<(std::ostream& out, SatSolver::DInt var){
+inline std::ostream& operator<<(std::ostream& out, const SatSolver::DInt& var){
     out << (var.b ? "¬" : "") << var.i +1;
     return out;
 }
 
-inline std::ostream& operator<<(std::ostream& out, SatSolver::MLit var){
+inline std::ostream& operator<<(std::ostream& out, const SatSolver::MLit& var){
     out << var.var;
     if(&var.decidingCl != nullptr) out << var.decidingCl;
     return out;
 }
 
-inline std::ostream& operator<<(std::ostream& out, SatSolver::Clause cl){
+inline std::ostream& operator<<(std::ostream& out, const SatSolver::Clause& cl){
     for(size_t i = 0 ; i < cl.clause.size() -1 ; ++i){
         out << cl.clause[i] << " v ";
     }

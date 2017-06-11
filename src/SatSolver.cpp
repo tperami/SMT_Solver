@@ -4,7 +4,6 @@ using namespace std;
 
 void SatSolver::checkInvariant(){
 #ifndef NDEBUG
-    cout << "check";
     // sizes
     if(_model.size() > _numVar){
         cout << "model too big :" << _model.size() << " " <<  _numVar <<  endl;
@@ -26,6 +25,8 @@ void SatSolver::checkInvariant(){
         unicity.clear();
         used[mlit.var.i] = true;
         value[mlit.var.i] = ! mlit.var.b;
+        if(&mlit.decidingCl == nullptr) continue;
+        //cout << &mlit.decidingCl << endl;
         assert(isSorted(mlit.decidingCl));
         for(DInt di : mlit.decidingCl){
             assert(!unicity[di.i]);
@@ -118,7 +119,7 @@ void SatSolver::conflict(int clause){ // conflict by resolution then backjump
         MLit& cur = _model.back();
         assert(!in(cur.var,R)); // the variable is not in R.
         if(in(!cur.var,R)){
-            if(&cur.decidingCl != nullptr){ // start backjump
+            if(&cur.decidingCl == nullptr){ // start backjump
                 if(_verbose){
                     cout << "conflict end on var : " << cur.var << " with : " << R << endl;
                     cout << "old model :";
@@ -133,7 +134,7 @@ void SatSolver::conflict(int clause){ // conflict by resolution then backjump
                                           << " cutting at : " << lastDeciLit << endl;
                         break;
                     }
-                    if(_model[i].decidingCl.empty()) lastDeciLit = i;
+                    if(&_model[i].decidingCl == nullptr) lastDeciLit = i;
                 }
                 DInt v = cur.var;
                 v = !v;
