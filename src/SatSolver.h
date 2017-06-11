@@ -33,7 +33,6 @@ class SatSolver{
         DInt(){}
     }; // 2n : var n, 2n+1 neg var n.
 
-    
     struct MLit{
         DInt var;
         // if decision == {} : the var has been decided else this is the deciding clause.

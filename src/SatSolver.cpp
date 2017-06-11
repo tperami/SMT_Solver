@@ -294,9 +294,13 @@ void SatSolver::addSMTConflict(SatCnf::Clause& cl){
     }
 }
 std::vector<bool> SatSolver::solve(){
-    
     try{
+        if(!_model.empty()){
+            conflict(_clauses.size() -1);
+            goto middle;
+        }
         while(!decide()){
+        middle:
             while(!_toUpdate.empty()){
                 handle();
             }
