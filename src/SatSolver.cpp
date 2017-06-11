@@ -79,7 +79,7 @@ bool SatSolver::decide(){
     if(var == -1) return true; // YEAH : SAT
     assert(!_used[var]);
     setVar(DInt(false,var));
-    _model.push_back(MLit{DInt(false,var),{}});
+    _model.push_back(MLit(DInt(false,var),nullptr));
     if(_verbose) {
         cout << endl << "Deciding var " << var+1 << endl << "Model : ";
         printModel();
@@ -88,16 +88,17 @@ bool SatSolver::decide(){
     return false;
 }
 
-void SatSolver::unit(DInt var, std::vector<DInt> decCl){
+void SatSolver::unit(DInt var, std::vector<DInt>& decCl){
     assert(!_used[var.i]);
     assert(isSorted(decCl));
     setVar(var);
-    _model.push_back(MLit{var,move(decCl)});
+    _model.push_back(MLit(var,&decCl));
 }
 
 void SatSolver::unit(DInt var, int clause){
-    //auto& cl = _clauses.at(clause).clause;
-    unit(var,_clauses[clause].clause);
+    assert(!_used[var.i]);
+    setVar(var);
+    _model.push_back(MLit(var,_clauses[clause].clause));
 }
 
 SatSolver::SatSolver(int numVar, bool verbose)
@@ -111,13 +112,13 @@ void SatSolver::conflict(int clause){ // conflict by resolution then backjump
     assert((size_t)clause < _clauses.size());
     checkInvariant();
     _toUpdate.clear();
-    vector<DInt> R = _clauses[clause].clause;
+    vector<DInt>& R = *new std::vector<DInt>(_clauses[clause].clause);
     if(_verbose ) cout << "starting resolution with : " << R << endl;
     while(!_model.empty() and !R.empty()){
         MLit& cur = _model.back();
         assert(!in(cur.var,R)); // the variable is not in R.
         if(in(!cur.var,R)){
-            if(cur.decidingCl.empty()){ // start backjump
+            if(&cur.decidingCl != nullptr){ // start backjump
                 if(_verbose){
                     cout << "conflict end on var : " << cur.var << " with : " << R << endl;
                     cout << "old model :";
@@ -280,7 +281,6 @@ void SatSolver::addSMTConflict(SatCnf::Clause& cl){
                         cl2.wl2 = index(!_model[i].var,cl2.clause);
                         break;
                     }
-
                 }
             }
         }
@@ -294,7 +294,6 @@ void SatSolver::addSMTConflict(SatCnf::Clause& cl){
     }
 }
 std::vector<bool> SatSolver::solve(){
-    
     try{
         while(!decide()){
             while(!_toUpdate.empty()){

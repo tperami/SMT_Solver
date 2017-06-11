@@ -30,14 +30,19 @@ class SatSolver{
             *(int*)this = i;
         }
         DInt(bool nb, int ni) : b(nb), i(ni){}
-        DInt(){}
+        DInt(){assert(false);}
     }; // 2n : var n, 2n+1 neg var n.
-
-    
     struct MLit{
         DInt var;
         // if decision == {} : the var has been decided else this is the deciding clause.
-        std::vector<DInt> decidingCl; // sorted array
+        std::vector<DInt>& decidingCl; // sorted array
+        bool toDelete = false;
+        MLit(DInt v, std::vector<DInt>* dCl) : var(v), decidingCl(*dCl), toDelete(true){}
+        MLit(DInt v, std::vector<DInt>& dCl) : var(v), decidingCl(dCl), toDelete(false){}
+        ~MLit(){
+            if(toDelete) delete &decidingCl;
+        }
+        MLit() : decidingCl(*(std::vector<DInt>*)nullptr){assert(false);} // HACK
     };
     size_t _numVar;
     bool _verbose;
@@ -118,7 +123,7 @@ class SatSolver{
     // rules
     void setVar(DInt var); // update all clauses with a var and _used and _value.
     bool decide(); // decide a unaffected var : return false on decision, true if finished (SAT).
-    void unit(DInt var, std::vector<DInt> decCl); // fix this var as non-decided and give the reason.
+    void unit(DInt var, std::vector<DInt>& decCl); // fix this var as non-decided and give the reason.
     void unit(DInt var, int clause); // fix this var as non-decided and give the reason.
     void conflict(int clause); // resolve conflict on clause, for now only backtrack. TODO resolve
     void handle(); // take care of the next element in _toUpdate, fail badly if to update is empty.
@@ -167,7 +172,8 @@ inline std::ostream& operator<<(std::ostream& out, SatSolver::DInt var){
 }
 
 inline std::ostream& operator<<(std::ostream& out, SatSolver::MLit var){
-    out << var.var << var.decidingCl;
+    out << var.var;
+    if(&var.decidingCl != nullptr) out << var.decidingCl;
     return out;
 }
 
