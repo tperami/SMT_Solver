@@ -215,6 +215,23 @@ public:
         memset(_data,-1,(_size+7)/8);
     }
     friend std::ostream& operator<<(std::ostream& out, const Bitset& b);
+
+    bool operator==(const Bitset& oth) const{
+        if(this == &oth) return true;
+        size_t i;
+        for(i = 0 ; i < _size/64 ; ++i){
+            if(_data[i] != oth._data[i]) return false;
+        }
+        size_t mod = _size % 64;
+        if(mod){
+            if((_data[i] ^ oth._data[i]) & ((1L << mod) - 1)) return false;
+        }
+        return true;
+    }
+
+    bool operator!=(const Bitset& oth) const{
+        return !(*this == oth);
+    }
 };
 
 inline std::ostream& operator<<(std::ostream& out, const Bitset& b){

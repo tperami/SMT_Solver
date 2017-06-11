@@ -11,6 +11,7 @@
 #include "prettyprint.hpp"
 
 // this class hold the sat solver state
+// the class invariant is programmatically stated in checkInvariant();
 class SatSolver{
 
     struct DInt{
@@ -29,12 +30,14 @@ class SatSolver{
             *(int*)this = i;
         }
         DInt(bool nb, int ni) : b(nb), i(ni){}
+        DInt(){}
     }; // 2n : var n, 2n+1 neg var n.
 
+    
     struct MLit{
         DInt var;
-        bool decided; // if true, this is a decision literal
-        //TODO replace it with resolution clause
+        // if decision == {} : the var has been decided else this is the deciding clause.
+        std::set<DInt> decidingCl;
     };
     size_t _numVar;
     bool _verbose;
@@ -73,12 +76,27 @@ class SatSolver{
         }
     }
 
+    static void fusion (std::set<DInt>& target, const std::set<DInt>& other){
+        for (DInt d : other){
+            if(target.count(!d)){
+                target.erase(!d);
+            }
+            else if(!target.count(d)){
+                target.insert(d);
+            }
+        }
+    }
+
     // rules
     void setVar(DInt var); // update all clauses with a var and _used and _value.
     bool decide(); // decide a unaffected var : return false on decision, true if finished (SAT).
-    void unit(DInt var); // fix this var as non-decided;
+    void unit(DInt var, std::set<DInt> decCl); // fix this var as non-decided and give the reason.
+    void unit(DInt var, int clause); // fix this var as non-decided and give the reason.
     void conflict(int clause); // resolve conflict on clause, for now only backtrack. TODO resolve
     void handle(); // take care of the next element in _toUpdate, fail badly if to update is empty.
+
+    // check class invariant
+    void checkInvariant();
 
     // pretty-printing
     friend std::ostream& operator<<(std::ostream& out, SatSolver::DInt var);
@@ -99,7 +117,7 @@ inline std::ostream& operator<<(std::ostream& out, SatSolver::DInt var){
 }
 
 inline std::ostream& operator<<(std::ostream& out, SatSolver::MLit var){
-    out << var.var << (var.decided ? "°" : "");
+    out << var.var << var.decidingCl;
     return out;
 }
 
@@ -110,5 +128,7 @@ inline std::ostream& operator<<(std::ostream& out, SatSolver::Clause cl){
     out << cl.clause.back() << " <- " << cl.wl1 << " <- " << cl.wl2;
     return out;
 }
+
+
 
 #endif
