@@ -135,7 +135,6 @@ end:
         throw SatCnf::SatSyntaxErr(SatCnf::parserLine,
                                    "Clause does not end on 0");
     }
-    cout << "lits :" << cl.literals << endl;
     cl.literals.pop_back();
     return in;
 }
@@ -149,7 +148,7 @@ std::istream& operator>>(std::istream& in, SatCnf& Satcnf){
 
 std::ostream& operator<<(std::ostream& out, const SatCnf::Literal& lit){
     if(lit.neg) out << "¬";
-    out << lit.var;
+    out << lit.var+1;
     return out;
 }
 std::ostream& operator<<(std::ostream& out, const SatCnf::Clause& cl){

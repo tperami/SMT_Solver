@@ -63,8 +63,8 @@ class SatSolver{
         for (auto mlit : _model){
             std::cout << mlit << " ";
         }
-        std::cout << " and " << _value;
-        std::cout << std::endl;
+        //std::cout << " and " << _value;
+        //std::cout << std::endl;
     }
 
     void printWatched() const {
@@ -88,10 +88,13 @@ public :
     SatSolver(int numVar, bool verbose);
     //solve a sat Cnf, returns empty vector if UNSAT.
     std::vector<bool> solve(const SatCnf& sc);
+
+    // add a SMT Conflict clause.
+    void addSMTConflict(SatCnf::Clause& cl);
 };
 
 inline std::ostream& operator<<(std::ostream& out, SatSolver::DInt var){
-    out << (var.b ? "¬" : "") << var.i;
+    out << (var.b ? "¬" : "") << var.i +1;
     return out;
 }
 

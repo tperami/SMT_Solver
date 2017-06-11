@@ -41,7 +41,7 @@ int main(int argc, char**argv){
                 if(!sol.empty()){
                     cout << sc.eval(sol) << endl;
                 }
-
+                return 0;
             }
             else if(s == "-smt"){
                 ++cur;
@@ -57,7 +57,11 @@ int main(int argc, char**argv){
                 SmtCnf sc(in);
                 cout << "Solving" << endl;
                 cout << sc;
+                exit(0);
             }
+            /*else if(s == "-gsat"){
+                
+              }*/
             else{
                 cout << "unknown option " << s << endl;
                 return 1;
